@@ -174,6 +174,5 @@ public class CardTierList
         {
             return TierEnum.UNKNOWN;
         }
-        
     }
 }
