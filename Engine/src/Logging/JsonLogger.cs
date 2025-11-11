@@ -1,11 +1,10 @@
-// Engine/src/Logging/JsonlLogger.cs
 using System;
-using System.Collections.Concurrent;   // BlockingCollection<T>
+using System.Collections.Concurrent;
 using System.IO;
-using System.Text;                     // UTF8Encoding
-using System.Threading;                // CancellationTokenSource
-using System.Threading.Tasks;          // Task
-using Newtonsoft.Json;                 // JsonConvert
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace ScriptsOfTribute.Engine.Logging
 {
@@ -52,7 +51,7 @@ namespace ScriptsOfTribute.Engine.Logging
                 Formatting.None,
                 new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
 
-            // Non-blocking drop if queue full? Up to you. Here we block to keep logs complete.
+            // Non-blocking drop if queue full? block to keep logs complete
             _queue.Add(json);
         }
 

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using ScriptsOfTribute.Board;        // PatronId, Move, PlayerEnum, etc.
-using ScriptsOfTribute.Serializers;  // GameState, EndGameState, FullGameState
+using ScriptsOfTribute.Board;
+using ScriptsOfTribute.Serializers;
 using ScriptsOfTribute.Engine.Logging;
 
 namespace ScriptsOfTribute.AI
@@ -13,29 +13,29 @@ namespace ScriptsOfTribute.AI
         private readonly string _gameId;
         private readonly int _playerId;
         private int _turnIndex;
+        private readonly ulong? _seed;
 
-        public LoggedAI(AI inner, JsonlLogger logger, string gameId, int playerId)
+        public LoggedAI(AI inner, JsonlLogger logger, string gameId, int playerId, ulong? seed = null)
         {
             _inner = inner;
             _logger = logger;
             _gameId = gameId;
             _playerId = playerId;
             _turnIndex = 0;
+            _seed = seed;
         }
 
-        // Matches AI.cs
         public override PatronId SelectPatron(List<PatronId> availablePatrons, int round)
         {
             return _inner.SelectPatron(availablePatrons, round);
         }
 
-        // Matches AI.cs: Play(GameState gameState, List<Move> possibleMoves, TimeSpan remainingTime)
         public override Move Play(GameState gameState, List<Move> possibleMoves, TimeSpan remainingTime)
         {
             // 1) full observable snapshot
             var obs = gameState.SerializeGameState();  // JObject
 
-            // 2) legal actions from possibleMoves (for masking later)
+            // 2) legal actions from possibleMoves (i want it for masking later)
             var legal = new List<string>(possibleMoves.Count);
             foreach (var m in possibleMoves)
                 legal.Add(MoveToStableString(m));
@@ -61,7 +61,6 @@ namespace ScriptsOfTribute.AI
             return move;
         }
 
-        // Matches AI.cs: GameEnd(EndGameState state, FullGameState? finalBoardState)
         public override void GameEnd(EndGameState state, FullGameState? finalBoardState)
         {
             _inner.GameEnd(state, finalBoardState);
@@ -70,7 +69,6 @@ namespace ScriptsOfTribute.AI
             // Map PlayerEnum -> 0/1 (or leave null if no winner)
             if (state != null && state.Winner != PlayerEnum.NO_PLAYER_SELECTED)
             {
-                // Adjust if your enum uses different names; this matches typical values.
                 winnerId = state.Winner == PlayerEnum.PLAYER1 ? 0
                           : state.Winner == PlayerEnum.PLAYER2 ? 1
                           : (int?)null;
@@ -80,16 +78,17 @@ namespace ScriptsOfTribute.AI
             {
                 GameId = _gameId,
                 WinnerPlayerId = winnerId,
-                NumTurns = _turnIndex
-                // Add scores/seed later if you want—they’re not required for training.
+                NumTurns = _turnIndex,
+                // optional: add finalscore / seed
+                Seed = _seed.HasValue ? (long?)_seed.Value : (long?)null
             });
         }
 
         // Build a stable string for the move using fields present in Move.cs
         private static string MoveToStableString(Move m)
         {
-            // Minimum: Command + UniqueId is available and stable.
-            // If Move exposes more (e.g., m.Card?.Id or patron info), you can append them.
+            // at least Command + UniqueId is available and stable.
+            // additionally, if "Move" exposes more (like m.Card?.Id or patron info), i could optionally append them
             return $"{m.Command}#{m.UniqueId}";
         }
     }

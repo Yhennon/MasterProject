@@ -11,10 +11,8 @@ namespace ScriptsOfTribute.Engine.Logging
         // Serialized JObject from GameState.SerializeGameState()
         public object? State { get; set; }
 
-        // <<< IMPORTANT: strings, not ints
         public List<string> LegalActions { get; set; } = new List<string>();
 
-        // <<< IMPORTANT: string, not int
         public string ActionTaken { get; set; } = "";
 
         public bool Done { get; set; }

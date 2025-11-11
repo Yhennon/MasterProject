@@ -38,7 +38,7 @@ var clientPortOption = CreateOption<int>("--client-port", "Base client port for 
 var serverPortOption = CreateOption<int>("--server-port", "Base server port for gRPC bots.", 49000, "-sp");
 var datasetLogOption = CreateOption<string?>(
     "--log",
-    "Write imitation dataset (JSONL) to this file, for example: logs/decisions.jsonl.",
+    "Write imitation dataset (JSONL format) to this file, for example: logs/decisions.jsonl.",
     null,
     "-imitation-log"
 );
@@ -287,8 +287,8 @@ void RunSingleThreaded(
         {
             // make a stable id; you can also use DateTime if you prefer
             string gameId = $"{currentSeed}_{i:D6}";
-            p1 = new LoggedAI(bot1, datasetLogger, gameId, playerId: 0);
-            p2 = new LoggedAI(bot2, datasetLogger, gameId, playerId: 1);
+            p1 = new LoggedAI(bot1, datasetLogger, gameId, playerId: 0, currentSeed);
+            p2 = new LoggedAI(bot2, datasetLogger, gameId, playerId: 1, currentSeed);
         }
 
         var game = PrepareGame(p1, p2, enableLogs, currentSeed, logFileNameProvider, timeout);
