@@ -7,6 +7,7 @@ using ScriptsOfTributeGRPC;
 using System.CommandLine.Parsing;
 using System.CommandLine.Invocation;
 using System.Runtime.Loader;
+using ScriptsOfTribute.Engine.Logging;
 
 var currentDirectory = new DirectoryInfo(AppContext.BaseDirectory);
 var botsDirectory = Path.Combine(currentDirectory.FullName, "Bots");
@@ -35,6 +36,12 @@ var logFileDestination = CreateLogFileOption("--log-destination", "Directory for
 var timeoutOption = CreateOption<int>("--timeout", "Game timeout in seconds.", 30, "-to");
 var clientPortOption = CreateOption<int>("--client-port", "Base client port for gRPC bots.", 50000, "-cp");
 var serverPortOption = CreateOption<int>("--server-port", "Base server port for gRPC bots.", 49000, "-sp");
+var datasetLogOption = CreateOption<string?>(
+    "--log",
+    "Write imitation dataset (JSONL) to this file, for example: logs/decisions.jsonl.",
+    null,
+    "-imitation-log"
+);
 
 var bot1NameArgument = CreateBotArgument("bot1", "Name of the first bot or command.");
 var bot2NameArgument = CreateBotArgument("bot2", "Name of the second bot or command.");
@@ -51,6 +58,7 @@ var mainCommand = new RootCommand("A game runner for bots.")
     serverPortOption,
     bot1NameArgument,
     bot2NameArgument,
+    datasetLogOption,
 };
 
 #endregion
@@ -203,6 +211,12 @@ mainCommand.SetHandler((InvocationContext context) =>
     int timeout = context.ParseResult.GetValueForOption(timeoutOption);
     int baseClientPort = context.ParseResult.GetValueForOption(clientPortOption);
     int baseServerPort = context.ParseResult.GetValueForOption(serverPortOption);
+    string? datasetLogPath = context.ParseResult.GetValueForOption(datasetLogOption);
+    JsonlLogger? datasetLogger = null;
+    if (!string.IsNullOrWhiteSpace(datasetLogPath))
+    {
+        datasetLogger = new JsonlLogger(datasetLogPath!, append: true);
+    }
     BotInfo? bot1Info = context.ParseResult.GetValueForArgument(bot1NameArgument);
     BotInfo? bot2Info = context.ParseResult.GetValueForArgument(bot2NameArgument);
 
@@ -219,9 +233,11 @@ mainCommand.SetHandler((InvocationContext context) =>
     ulong actualSeed = seed ?? (ulong)new Random().NextInt64();
 
     if (threads == 1)
-        RunSingleThreaded(runs, bot1Info, bot2Info, logs, logProvider, actualSeed, timeout, baseClientPort, baseServerPort, baseHost);
+        RunSingleThreaded(runs, bot1Info, bot2Info, logs, logProvider, actualSeed, timeout, baseClientPort, baseServerPort, baseHost, datasetLogger);
     else
-        RunMultiThreaded(runs, threads, bot1Info, bot2Info, logs, logProvider, actualSeed, timeout, baseClientPort, baseServerPort, baseHost);
+        RunMultiThreaded(runs, threads, bot1Info, bot2Info, logs, logProvider, actualSeed, timeout, baseClientPort, baseServerPort, baseHost, datasetLogger);
+
+    datasetLogger?.Dispose();
 });
 
 void RunSingleThreaded(
@@ -234,7 +250,8 @@ void RunSingleThreaded(
     int timeout,
     int baseClientPort,
     int baseServerPort,
-    string baseHost = "localhost"
+    string baseHost = "localhost",
+    JsonlLogger? datasetLogger = null
 )
 {
     Console.WriteLine($"Running {runs} games - {bot1Info.BotName} vs {bot2Info.BotName}");
@@ -262,7 +279,19 @@ void RunSingleThreaded(
 
     for (var i = 0; i < runs; i++)
     {
-        var game = PrepareGame(bot1, bot2, enableLogs, currentSeed, logFileNameProvider, timeout);
+        // Wrap the existing bot instances for *this* game if logging is enabled
+        AI p1 = bot1;
+        AI p2 = bot2;
+
+        if (datasetLogger != null)
+        {
+            // make a stable id; you can also use DateTime if you prefer
+            string gameId = $"{currentSeed}_{i:D6}";
+            p1 = new LoggedAI(bot1, datasetLogger, gameId, playerId: 0);
+            p2 = new LoggedAI(bot2, datasetLogger, gameId, playerId: 1);
+        }
+
+        var game = PrepareGame(p1, p2, enableLogs, currentSeed, logFileNameProvider, timeout);
         currentSeed += 1;
 
         granularWatch.Reset();
@@ -301,7 +330,8 @@ void RunMultiThreaded(
     int timeout,
     int baseClientPort,
     int baseServerPort,
-    string baseHost = "localhost"
+    string baseHost = "localhost",
+    JsonlLogger? datasetLogger = null
 )
 {
     Console.WriteLine($"Running {runs} games with {noOfThreads} threads.");
@@ -321,7 +351,18 @@ void RunMultiThreaded(
 
         for (var i = 0; i < amount; i++)
         {
-            var game = PrepareGame(bot1, bot2, enableLogs, seed, logFileNameProvider, timeout);
+            
+        // Wrap per game if logging is enabled (thread-safe: JsonlLogger is concurrent)
+            AI p1 = bot1;
+            AI p2 = bot2;
+            if (datasetLogger != null)
+            {
+                string gameId = $"{threadNo}_{seed}_{i:D6}";
+                p1 = new LoggedAI(bot1, datasetLogger, gameId, playerId: 0);
+                p2 = new LoggedAI(bot2, datasetLogger, gameId, playerId: 1);
+        }
+
+            var game = PrepareGame(p1, p2, enableLogs, seed, logFileNameProvider, timeout);
             seed += 1;
 
             watch.Reset();
