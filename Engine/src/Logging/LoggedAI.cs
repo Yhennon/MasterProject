@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ScriptsOfTribute.Board;
 using ScriptsOfTribute.Serializers;
 using ScriptsOfTribute.Engine.Logging;
+using ScriptsOfTribute.Board.CardAction;
 
 namespace ScriptsOfTribute.AI
 {
@@ -32,30 +33,54 @@ namespace ScriptsOfTribute.AI
 
         public override Move Play(GameState gameState, List<Move> possibleMoves, TimeSpan remainingTime)
         {
-            // 1) full observable snapshot
-            var obs = gameState.SerializeGameState();  // JObject
+            // --- DIAGNOSTIC MEASUREMENT MODE ---
 
-            // 2) legal actions from possibleMoves (i want it for masking later)
-            var legal = new List<string>(possibleMoves.Count);
-            foreach (var m in possibleMoves)
-                legal.Add(MoveToStableString(m));
+            // 1) Compute the stats i care about
+            var current = gameState.CurrentPlayer;
 
-            // 3) delegate to the real bot
+            int handSize = current.Hand.Count;
+            int drawPileSize = current.DrawPile.Count;
+            int cooldownSize = current.CooldownPile.Count;
+            int agentsCount = current.Agents.Count;
+            int tavernCount = gameState.TavernAvailableCards.Count;
+            int numLegalActions = possibleMoves.Count;
+
+            int pendingChoiceOptions = 0;
+            if (gameState.PendingChoice is { } choice)
+            {
+                if (choice.Type == Choice.DataType.CARD)
+                    pendingChoiceOptions = choice.PossibleCards.Count;
+                else if (choice.Type == Choice.DataType.EFFECT)
+                    pendingChoiceOptions = choice.PossibleEffects.Count;
+            }
+
+            // 2) Delegate to the real bot
             var move = _inner.Play(gameState, possibleMoves, remainingTime);
 
-            // 4) chosen action
-            var chosen = MoveToStableString(move);
-
-            // 5) log
+            // 3) For measurement only, can skip heavy fields :
             _logger.Write(new TurnLog
             {
-                GameId = _gameId,
+                GameId   = _gameId,
                 TurnIndex = _turnIndex++,
-                PlayerId = _playerId,
-                State = obs,
-                LegalActions = legal,
-                ActionTaken = chosen,
-                Done = false
+                PlayerId  = _playerId,
+
+                // Skip state serialization for speed:
+                State        = null,
+
+                // don't need to move strings for max-stat measurement:
+                LegalActions = new List<string>(),
+                ActionTaken  = string.Empty,
+
+                HandSize         = handSize,
+                DrawPileSize     = drawPileSize,
+                CooldownPileSize = cooldownSize,
+                AgentsCount      = agentsCount,
+                TavernCount      = tavernCount,
+                NumLegalActions  = numLegalActions,
+                PendingChoiceOptions = pendingChoiceOptions,
+
+                Done   = false,
+                Reward = null
             });
 
             return move;

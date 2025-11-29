@@ -15,6 +15,29 @@ namespace ScriptsOfTribute.Engine.Logging
 
         public string ActionTaken { get; set; } = "";
 
+        // --- NEW: diagnostic fields for measuring bounds ---
+
+        // How many cards the current player has in hand at this decision.
+        public int HandSize { get; set; }
+
+        // Sizes of some important zones (but these are described in game desc).
+        public int DrawPileSize { get; set; }
+        public int CooldownPileSize { get; set; }
+
+        // How many agents the current player has on the board.
+        public int AgentsCount { get; set; }
+
+        // How many cards are currently available in the tavern.
+        public int TavernCount { get; set; }
+
+        // Total number of legal moves in this state.
+        public int NumLegalActions { get; set; }
+
+        // If there is a pending choice, how many options does it offer?
+        // (0 if no choice is pending.)
+        public int PendingChoiceOptions { get; set; }
+
+        // --- existing fields ---
         public bool Done { get; set; }
         public double? Reward { get; set; }
     }

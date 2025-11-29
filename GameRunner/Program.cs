@@ -288,7 +288,7 @@ void RunSingleThreaded(
             // make a stable id; you can also use DateTime if you prefer
             string gameId = $"{currentSeed}_{i:D6}";
             p1 = new LoggedAI(bot1, datasetLogger, gameId, playerId: 0, currentSeed);
-            p2 = new LoggedAI(bot2, datasetLogger, gameId, playerId: 1, currentSeed);
+            // p2 = new LoggedAI(bot2, datasetLogger, gameId, playerId: 1, currentSeed);
         }
 
         var game = PrepareGame(p1, p2, enableLogs, currentSeed, logFileNameProvider, timeout);
@@ -359,7 +359,7 @@ void RunMultiThreaded(
             {
                 string gameId = $"{threadNo}_{seed}_{i:D6}";
                 p1 = new LoggedAI(bot1, datasetLogger, gameId, playerId: 0);
-                p2 = new LoggedAI(bot2, datasetLogger, gameId, playerId: 1);
+                // p2 = new LoggedAI(bot2, datasetLogger, gameId, playerId: 1);
         }
 
             var game = PrepareGame(p1, p2, enableLogs, seed, logFileNameProvider, timeout);
