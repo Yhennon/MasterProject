@@ -33,18 +33,52 @@ namespace ScriptsOfTribute.AI
 
         public override Move Play(GameState gameState, List<Move> possibleMoves, TimeSpan remainingTime)
         {
-            // --- DIAGNOSTIC MEASUREMENT MODE ---
+            // 1) full observable snapshot
+            var obs = gameState.SerializeGameState();  // JObject
 
-            // 1) Compute the stats i care about
+            // 2) Legacy string-based moves for debugging (optional)
+            var legalStrings = new List<string>(possibleMoves.Count);
+            foreach (var m in possibleMoves)
+                legalStrings.Add(MoveToStableString(m));
+
+            // 3) indexed legal actions + which ones couldn't be mapped
+            var legalIndices = new List<int>(possibleMoves.Count);
+            var unmappedLegal = new List<string>();
+
+            foreach (var m in possibleMoves)
+            {
+                int idx = ActionIndexer.ToIndex(gameState, m, _playerId);
+                if (idx >= 0)
+                {
+                    legalIndices.Add(idx);
+                }
+                else
+                {
+                    // Keep track of legal moves that are outside of action space
+                    unmappedLegal.Add(MoveToStableString(m));
+                }
+            }
+
+            // 4) Let the inner bot choose a move
+            var move = _inner.Play(gameState, possibleMoves, remainingTime);
+
+            // 5) Map chosen move to index
+            var chosenString = MoveToStableString(move);
+            int rawChosenIndex = ActionIndexer.ToIndex(gameState, move, _playerId);
+
+            bool indexerFailedForChosen = rawChosenIndex < 0;
+            int? chosenIndexOrNull      = rawChosenIndex >= 0 ? rawChosenIndex : (int?)null;
+
+            string commandName = move.Command.ToString();
+
+            // 6) Compute the diagnostic stats (hand size, etc) as i already do
             var current = gameState.CurrentPlayer;
-
-            int handSize = current.Hand.Count;
-            int drawPileSize = current.DrawPile.Count;
-            int cooldownSize = current.CooldownPile.Count;
-            int agentsCount = current.Agents.Count;
-            int tavernCount = gameState.TavernAvailableCards.Count;
+            int handSize        = current.Hand.Count;
+            int drawPileSize    = current.DrawPile.Count;
+            int cooldownPileSize    = current.CooldownPile.Count;
+            int agentsCount     = current.Agents.Count;
+            int tavernCount     = gameState.TavernAvailableCards.Count;
             int numLegalActions = possibleMoves.Count;
-
             int pendingChoiceOptions = 0;
             if (gameState.PendingChoice is { } choice)
             {
@@ -54,26 +88,26 @@ namespace ScriptsOfTribute.AI
                     pendingChoiceOptions = choice.PossibleEffects.Count;
             }
 
-            // 2) Delegate to the real bot
-            var move = _inner.Play(gameState, possibleMoves, remainingTime);
-
-            // 3) For measurement only, can skip heavy fields :
+            // 7) Write log entry
             _logger.Write(new TurnLog
             {
                 GameId   = _gameId,
                 TurnIndex = _turnIndex++,
                 PlayerId  = _playerId,
 
-                // Skip state serialization for speed:
-                State        = null,
+                State        = obs,
+                LegalActions = legalStrings,
+                ActionTaken  = chosenString,
 
-                // don't need to move strings for max-stat measurement:
-                LegalActions = new List<string>(),
-                ActionTaken  = string.Empty,
+                ChosenActionIndex     = chosenIndexOrNull,
+                LegalActionIndices    = legalIndices,
+                IndexerFailedForChosen= indexerFailedForChosen,
+                UnmappedLegalActions  = unmappedLegal,
+                Command               = commandName,
 
                 HandSize         = handSize,
                 DrawPileSize     = drawPileSize,
-                CooldownPileSize = cooldownSize,
+                CooldownPileSize = cooldownPileSize,
                 AgentsCount      = agentsCount,
                 TavernCount      = tavernCount,
                 NumLegalActions  = numLegalActions,
@@ -82,9 +116,9 @@ namespace ScriptsOfTribute.AI
                 Done   = false,
                 Reward = null
             });
-
             return move;
         }
+
 
         public override void GameEnd(EndGameState state, FullGameState? finalBoardState)
         {
@@ -112,8 +146,8 @@ namespace ScriptsOfTribute.AI
         // Build a stable string for the move using fields present in Move.cs
         private static string MoveToStableString(Move m)
         {
-            // at least Command + UniqueId is available and stable.
-            // additionally, if "Move" exposes more (like m.Card?.Id or patron info), i could optionally append them
+            // at least Command + UniqueId is available and stable
+            // additionally, if "Move" exposes more (like m.Card?.Id or patron info)i could optionally append them
             return $"{m.Command}#{m.UniqueId}";
         }
     }

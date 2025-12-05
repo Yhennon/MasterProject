@@ -8,37 +8,34 @@ namespace ScriptsOfTribute.Engine.Logging
         public int TurnIndex { get; set; }
         public int PlayerId { get; set; }
 
-        // Serialized JObject from GameState.SerializeGameState()
+        // full observable snapshot
         public object? State { get; set; }
 
+        // Old string-based moves (can keep for debugging, but im gonna use slot-based moves for NN input)
         public List<string> LegalActions { get; set; } = new List<string>();
-
         public string ActionTaken { get; set; } = "";
 
-        // --- NEW: diagnostic fields for measuring bounds ---
+        // Global index of the chosen action in [0..N_ACTIONS-1]
+        public int? ChosenActionIndex { get; set; }
 
-        // How many cards the current player has in hand at this decision.
+        // Indices of legal actions in [0..N_ACTIONS-1]
+        public List<int> LegalActionIndices { get; set; } = new List<int>();
+
+        public bool IndexerFailedForChosen { get; set; }         // true if chosen move had no index
+        public List<string> UnmappedLegalActions { get; set; } = new(); // legal moves that got idx < 0
+        public string Command { get; set; } = ""; 
+
+        // Diagnostic fields - can be used for RL training analysis maybe?
         public int HandSize { get; set; }
-
-        // Sizes of some important zones (but these are described in game desc).
         public int DrawPileSize { get; set; }
         public int CooldownPileSize { get; set; }
-
-        // How many agents the current player has on the board.
         public int AgentsCount { get; set; }
-
-        // How many cards are currently available in the tavern.
         public int TavernCount { get; set; }
-
-        // Total number of legal moves in this state.
         public int NumLegalActions { get; set; }
-
-        // If there is a pending choice, how many options does it offer?
-        // (0 if no choice is pending.)
         public int PendingChoiceOptions { get; set; }
 
-        // --- existing fields ---
-        public bool Done { get; set; }
+        // RL-ish fields
+        public bool Done { get; set; } // true if game over after this turn? or true if turn is over?
         public double? Reward { get; set; }
     }
 
@@ -47,7 +44,7 @@ namespace ScriptsOfTribute.Engine.Logging
         public string GameId { get; set; } = "";
         public bool Summary { get; set; } = true;
 
-        // <<< IMPORTANT: nullable int — winner may be "no player selected"
+        //IMPORTANT: nullable int — winner may be "no player selected"
         public int? WinnerPlayerId { get; set; }
 
         public int NumTurns { get; set; }
